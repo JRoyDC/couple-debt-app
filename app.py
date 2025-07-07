@@ -10,19 +10,29 @@ SAVE_DIR = "saved_data"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # --- Clear data if new file uploaded ---
+# Upload Excel files
 uploaded_files = st.file_uploader("Upload Excel files", type=["xlsx"], accept_multiple_files=True)
 
-# Reset logic
+# Reset logic on first-time upload
 if uploaded_files:
-    new_files = [f for f in uploaded_files if f.name not in st.session_state.get("uploaded_files", {})]
-    if new_files:
+    if "initial_upload_handled" not in st.session_state:
+        # Save uploaded files temporarily
         st.session_state.uploaded_files = {}
         st.session_state.dataframes = {}
+
+        for file in uploaded_files:
+            df = pd.read_excel(file, sheet_name=0)
+            st.session_state.uploaded_files[file.name] = file
+            st.session_state.dataframes[file.name] = df
+
+        # Remove saved CSVs
         for f in os.listdir(SAVE_DIR):
             if f.endswith(".csv"):
                 os.remove(os.path.join(SAVE_DIR, f))
-        st.info("🔄 New file uploaded. Previous data cleared.")
+
+        st.session_state.initial_upload_handled = True
         st.rerun()
+
 
 # --- Session Initialization ---
 if "uploaded_files" not in st.session_state:
