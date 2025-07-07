@@ -2,16 +2,29 @@ import streamlit as st
 import pandas as pd
 
 st.set_page_config(page_title="Couple Debt Splitter", layout="wide")
-
 st.title("🍽️ Couple Debt Splitter")
 
-uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
+# Initialize uploaded files dictionary in session state
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = {}
 
-if uploaded_file:
-    df = pd.read_excel(uploaded_file, sheet_name=0)
+# Upload section
+uploaded_files = st.file_uploader("Upload one or more Excel files", type=["xlsx"], accept_multiple_files=True)
+
+# Store uploaded files in session_state
+for file in uploaded_files:
+    if file.name not in st.session_state.uploaded_files:
+        st.session_state.uploaded_files[file.name] = file
+
+# If any files are uploaded
+if st.session_state.uploaded_files:
+    selected_filename = st.selectbox("Select a file to analyze", list(st.session_state.uploaded_files.keys()))
+    file = st.session_state.uploaded_files[selected_filename]
+
+    df = pd.read_excel(file, sheet_name=0)
     st.subheader("Original Data")
-    
-    # Format Total as currency
+
+    # Format Total as currency if it exists
     formatted_df = df.copy()
     if 'Total' in formatted_df.columns:
         formatted_df['Total'] = formatted_df['Total'].map("${:,.2f}".format)
@@ -21,32 +34,51 @@ if uploaded_file:
     couple_columns = df.columns[3:]
     couple_list = couple_columns.tolist()
 
-    # Add helper columns
+    # Sidebar checkboxes to include/exclude couples
+    st.sidebar.header("👥 Select Couples to Include")
+    selected_couples = [
+        couple for couple in couple_list
+        if st.sidebar.checkbox(couple, value=True)
+    ]
+
+    if not selected_couples:
+        st.warning("Please select at least one couple to include.")
+        st.stop()
+
+    # Identify payer
     def identify_payer(row):
-        for couple in couple_list:
-            if row[couple] < 0:
+        for couple in selected_couples:
+            if couple in row and row[couple] < 0:
                 return couple
         return None
 
     df['Payer'] = df.apply(identify_payer, axis=1)
-    df['Share Per Couple'] = df['Total'] / df['Couples to include']
 
-    calc_df = df[['Restaurant', 'Total', 'Couples to include', 'Payer', 'Share Per Couple']].copy()
+    # Protect against division errors
+    df['Share Per Couple'] = df.apply(
+        lambda row: row['Total'] / row['Couples to include'] if row['Couples to include'] > 0 else 0, axis=1
+    )
+
+    # Filter out rows where payer isn't in selected couples
+    filtered_df = df[df['Payer'].isin(selected_couples)].copy()
+
+    # Display payer and share breakdown
+    calc_df = filtered_df[['Restaurant', 'Total', 'Couples to include', 'Payer', 'Share Per Couple']].copy()
     calc_df['Total'] = calc_df['Total'].map("${:,.2f}".format)
     calc_df['Share Per Couple'] = calc_df['Share Per Couple'].map("${:,.2f}".format)
 
-    st.subheader("Calculated Payers & Share")
+    st.subheader("Calculated Payers & Share (Filtered)")
     st.dataframe(calc_df)
 
     # Create debt matrix
-    debt_matrix = pd.DataFrame(0.0, index=couple_list, columns=couple_list)
+    debt_matrix = pd.DataFrame(0.0, index=selected_couples, columns=selected_couples)
 
-    for _, row in df.iterrows():
+    for _, row in filtered_df.iterrows():
         payer = row['Payer']
+        share = row['Share Per Couple']
         if payer:
-            share = row['Share Per Couple']
-            for couple in couple_list:
-                if row[couple] > 0:
+            for couple in selected_couples:
+                if couple in row and row[couple] > 0:
                     debt_matrix.loc[couple, payer] += share
 
     st.subheader("Raw Debt Matrix (Before Netting)")
@@ -55,18 +87,17 @@ if uploaded_file:
     # Net the debts
     net_debt = debt_matrix.subtract(debt_matrix.T)
 
-    # Format and style net matrix
+    # Style the net matrix
     styled_net_debt = net_debt.style \
         .format("${:,.2f}") \
         .applymap(lambda v: 'color: green;' if v > 0 else 'color: red;' if v < 0 else 'color: gray;') \
         .set_properties(**{'font-weight': 'bold'}) \
-        .highlight_null(null_color='white') \
         .set_caption("💸 Net Debt Matrix — Positive = Row Couple Owes Column Couple")
 
     st.subheader("Net Debt Matrix (Final)")
     st.dataframe(styled_net_debt)
 
-    st.markdown("✅ **Positive values** = row couple owes column couple. \
+    st.markdown("✅ **Positive values** = row couple owes column couple.\
                 \n✅ **Negative values** = row couple is owed by the column couple.")
 else:
-    st.info("Please upload an Excel file to begin.")
+    st.info("Upload at least one Excel file to begin.")
