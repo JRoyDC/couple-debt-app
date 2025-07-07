@@ -79,31 +79,31 @@ if st.session_state.uploaded_files:
         st.warning("No couple columns found (expected columns after the third one).")
         st.stop()
 
-    def identify_payer(row):
+    # --- Build debt matrix by detecting payer dynamically ---
+    debt_matrix = pd.DataFrame(0.0, index=selected_couples, columns=selected_couples)
+
+    for _, row in edited_df.iterrows():
+        payer = None
         for couple in selected_couples:
             try:
                 if pd.notnull(row[couple]) and float(row[couple]) < 0:
-                    return couple
+                    payer = couple
+                    break
             except:
                 continue
-        return None
 
-    edited_df['Payer'] = edited_df.apply(identify_payer, axis=1)
-    filtered_df = edited_df[edited_df['Payer'].isin(selected_couples)].copy()
+        if not payer:
+            continue  # Skip if no payer found
+
+        for couple in selected_couples:
+            try:
+                value = float(row[couple])
+                if pd.notnull(value) and value > 0:
+                    debt_matrix.loc[couple, payer] += value
+            except:
+                continue
 
     # --- Raw Debt Matrix ---
-    debt_matrix = pd.DataFrame(0.0, index=selected_couples, columns=selected_couples)
-    for _, row in filtered_df.iterrows():
-        payer = row['Payer']
-        if payer:
-            for couple in selected_couples:
-                try:
-                    value = float(row[couple])
-                    if pd.notnull(value) and value > 0:
-                        debt_matrix.loc[couple, payer] += value
-                except:
-                    continue
-
     st.subheader("📊 Raw Debt Matrix")
     st.dataframe(debt_matrix.style.format("${:,.2f}"))
 
