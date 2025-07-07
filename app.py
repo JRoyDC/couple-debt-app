@@ -2,12 +2,29 @@ import streamlit as st
 import pandas as pd
 import os
 
+# --- Setup ---
 st.set_page_config(page_title="Couple Debt Splitter", layout="wide")
 st.title("🍽️ Couple Debt Splitter")
 
 SAVE_DIR = "saved_data"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
+# --- Clear data if new file uploaded ---
+uploaded_files = st.file_uploader("Upload Excel files", type=["xlsx"], accept_multiple_files=True)
+
+# Reset logic
+if uploaded_files:
+    new_files = [f for f in uploaded_files if f.name not in st.session_state.get("uploaded_files", {})]
+    if new_files:
+        st.session_state.uploaded_files = {}
+        st.session_state.dataframes = {}
+        for f in os.listdir(SAVE_DIR):
+            if f.endswith(".csv"):
+                os.remove(os.path.join(SAVE_DIR, f))
+        st.info("🔄 New file uploaded. Previous data cleared.")
+        st.rerun()
+
+# --- Session Initialization ---
 if "uploaded_files" not in st.session_state:
     st.session_state.uploaded_files = {}
 if "dataframes" not in st.session_state:
@@ -21,14 +38,14 @@ for filename in saved_files:
         st.session_state.uploaded_files[filename] = filepath
         st.session_state.dataframes[filename] = pd.read_csv(filepath)
 
-# Upload new Excel files
-uploaded_files = st.file_uploader("Upload Excel files", type=["xlsx"], accept_multiple_files=True)
+# Process newly uploaded Excel files
 for file in uploaded_files:
     if file.name not in st.session_state.uploaded_files:
         df = pd.read_excel(file, sheet_name=0)
         st.session_state.uploaded_files[file.name] = file
         st.session_state.dataframes[file.name] = df
 
+# --- Main UI ---
 if st.session_state.uploaded_files:
     selected_filename = st.selectbox("Select a file to work with", list(st.session_state.uploaded_files.keys()))
     df = st.session_state.dataframes[selected_filename]
@@ -37,7 +54,7 @@ if st.session_state.uploaded_files:
     edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="data_editor")
     st.session_state.dataframes[selected_filename] = edited_df
 
-    # Save to CSV
+    # Save edits to CSV
     save_path = os.path.join(SAVE_DIR, selected_filename.replace(".xlsx", ".csv"))
     edited_df.to_csv(save_path, index=False)
 
@@ -48,16 +65,16 @@ if st.session_state.uploaded_files:
         edited_df.to_csv(save_path, index=False)
         st.rerun()
 
-    # Display preview
+    # Display Preview
     st.subheader("📋 Table Preview")
     row_height = 35
     table_height = min(1000, 50 + len(edited_df) * row_height)
     st.dataframe(edited_df, use_container_width=True, height=table_height)
 
-    # Proceed if valid
+    # --- Debt Calculations ---
     required_cols = ['Restaurant', 'Total']
     if not all(col in edited_df.columns for col in required_cols):
-        st.warning("Missing required columns like 'Restaurant' or 'Total'.")
+        st.warning("Missing required columns like 'Restaurant' and 'Total'.")
         st.stop()
 
     couple_columns = edited_df.columns[3:]
@@ -66,7 +83,6 @@ if st.session_state.uploaded_files:
         st.warning("No couple columns found (expected columns after the third one).")
         st.stop()
 
-    # Recalculate
     def identify_payer(row):
         for couple in selected_couples:
             try:
@@ -83,17 +99,15 @@ if st.session_state.uploaded_files:
         if row['Couples to include'] > 0 and pd.notnull(row['Total']) else 0, axis=1
     )
 
-    # Filter valid rows
     filtered_df = edited_df[edited_df['Payer'].isin(selected_couples)].copy()
 
-    # Display summary
     st.subheader("🧾 Calculated Payers & Share")
     calc_df = filtered_df[['Restaurant', 'Total', 'Couples to include', 'Payer', 'Share Per Couple']].copy()
     calc_df['Total'] = pd.to_numeric(calc_df['Total'], errors='coerce').map("${:,.2f}".format)
     calc_df['Share Per Couple'] = calc_df['Share Per Couple'].map("${:,.2f}".format)
     st.dataframe(calc_df, use_container_width=True)
 
-    # Debt Matrix
+    # --- Raw Debt Matrix ---
     debt_matrix = pd.DataFrame(0.0, index=selected_couples, columns=selected_couples)
     for _, row in filtered_df.iterrows():
         payer = row['Payer']
@@ -109,13 +123,14 @@ if st.session_state.uploaded_files:
     st.subheader("📊 Raw Debt Matrix")
     st.dataframe(debt_matrix.style.format("${:,.2f}"))
 
-    # Net debts
+    # --- Net Debt Matrix ---
     net_debt = debt_matrix.subtract(debt_matrix.T)
     styled_net = net_debt.style \
         .format("${:,.2f}") \
         .applymap(lambda v: 'color: green;' if v > 0 else 'color: red;' if v < 0 else 'color: gray;') \
         .set_properties(**{'font-weight': 'bold'}) \
         .set_caption("💸 Net Debt Matrix — Positive = Row Owes Column")
+
     st.subheader("💸 Net Debt Matrix")
     st.dataframe(styled_net)
 
