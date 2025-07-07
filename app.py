@@ -10,7 +10,12 @@ uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file, sheet_name=0)
     st.subheader("Original Data")
-    st.dataframe(df)
+    
+    # Format Total as currency
+    formatted_df = df.copy()
+    if 'Total' in formatted_df.columns:
+        formatted_df['Total'] = formatted_df['Total'].map("${:,.2f}".format)
+    st.dataframe(formatted_df)
 
     # Extract couple columns
     couple_columns = df.columns[3:]
@@ -26,8 +31,12 @@ if uploaded_file:
     df['Payer'] = df.apply(identify_payer, axis=1)
     df['Share Per Couple'] = df['Total'] / df['Couples to include']
 
+    calc_df = df[['Restaurant', 'Total', 'Couples to include', 'Payer', 'Share Per Couple']].copy()
+    calc_df['Total'] = calc_df['Total'].map("${:,.2f}".format)
+    calc_df['Share Per Couple'] = calc_df['Share Per Couple'].map("${:,.2f}".format)
+
     st.subheader("Calculated Payers & Share")
-    st.dataframe(df[['Restaurant', 'Total', 'Couples to include', 'Payer', 'Share Per Couple']])
+    st.dataframe(calc_df)
 
     # Create debt matrix
     debt_matrix = pd.DataFrame(0.0, index=couple_list, columns=couple_list)
@@ -41,12 +50,12 @@ if uploaded_file:
                     debt_matrix.loc[couple, payer] += share
 
     st.subheader("Raw Debt Matrix (Before Netting)")
-    st.dataframe(debt_matrix)
+    st.dataframe(debt_matrix.style.format("${:,.2f}"))
 
     # Net the debts
     net_debt = debt_matrix.subtract(debt_matrix.T)
     st.subheader("Net Debt Matrix (Final)")
-    st.dataframe(net_debt.round(2))
+    st.dataframe(net_debt.style.format("${:,.2f}"))
 
     st.markdown("✅ **Positive numbers** mean the row couple owes the column couple.")
 else:
