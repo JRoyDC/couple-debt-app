@@ -29,7 +29,7 @@ if st.session_state.uploaded_files:
     st.subheader("Editable Data")
 
     # Editable data editor
-    edited_df = st.experimental_data_editor(df, num_rows="dynamic", use_container_width=True, key="data_editor")
+    edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="data_editor")
 
     # Update session state with edits
     st.session_state.dataframes[selected_filename] = edited_df
