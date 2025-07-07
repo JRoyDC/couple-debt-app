@@ -54,9 +54,19 @@ if uploaded_file:
 
     # Net the debts
     net_debt = debt_matrix.subtract(debt_matrix.T)
-    st.subheader("Net Debt Matrix (Final)")
-    st.dataframe(net_debt.style.format("${:,.2f}"))
 
-    st.markdown("✅ **Positive numbers** mean the row couple owes the column couple.")
+    # Format and style net matrix
+    styled_net_debt = net_debt.style \
+        .format("${:,.2f}") \
+        .applymap(lambda v: 'color: green;' if v > 0 else 'color: red;' if v < 0 else 'color: gray;') \
+        .set_properties(**{'font-weight': 'bold'}) \
+        .highlight_null(null_color='white') \
+        .set_caption("💸 Net Debt Matrix — Positive = Row Couple Owes Column Couple")
+
+    st.subheader("Net Debt Matrix (Final)")
+    st.dataframe(styled_net_debt)
+
+    st.markdown("✅ **Positive values** = row couple owes column couple. \
+                \n✅ **Negative values** = row couple is owed by the column couple.")
 else:
     st.info("Please upload an Excel file to begin.")
