@@ -88,7 +88,6 @@ if st.session_state.uploaded_files:
         return None
 
     edited_df['Payer'] = edited_df.apply(identify_payer, axis=1)
-
     filtered_df = edited_df[edited_df['Payer'].isin(selected_couples)].copy()
 
     # --- Raw Debt Matrix ---
@@ -122,5 +121,22 @@ if st.session_state.uploaded_files:
     ✅ **Positive values** = row couple owes column couple  
     ✅ **Negative values** = row couple is owed by column couple
     """)
+
+    # --- Filter: Show what one couple owes ---
+    st.markdown("### 🔍 Filter: See Who a Couple Owes")
+
+    selected_view = st.selectbox("Choose a couple to view only their debts (ignore what others owe them)", selected_couples)
+
+    if selected_view:
+        filtered_row = net_debt.loc[[selected_view]].copy()
+        filtered_row = filtered_row.applymap(lambda v: v if v > 0 else "")
+
+        st.subheader(f"💳 What {selected_view} Owes Others")
+        st.dataframe(
+            filtered_row.style
+            .format("${:,.2f}")
+            .set_properties(**{"font-weight": "bold"})
+            .set_caption(f"{selected_view} — Owes These Couples")
+        )
 else:
     st.info("Upload at least one Excel file to begin.")
