@@ -9,12 +9,12 @@ st.title("🍽️ Couple Debt Splitter")
 SAVE_DIR = "saved_data"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# --- Upload logic that clears previous data but avoids file_uploader rerun bug ---
+# --- Upload logic ---
 uploaded_files = st.file_uploader("Upload Excel files", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
     if "initial_upload_handled" not in st.session_state:
-        # Clear all
+        # Clear state and saved files
         st.session_state.uploaded_files = {}
         st.session_state.dataframes = {}
 
@@ -31,13 +31,13 @@ if uploaded_files:
         st.info("🔄 New file uploaded. Previous data cleared.")
         st.rerun()
 
-# --- Session Initialization ---
+# --- Session init ---
 if "uploaded_files" not in st.session_state:
     st.session_state.uploaded_files = {}
 if "dataframes" not in st.session_state:
     st.session_state.dataframes = {}
 
-# Load saved CSVs
+# Load from disk if available
 saved_files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".csv")]
 for filename in saved_files:
     if filename not in st.session_state.uploaded_files:
@@ -45,7 +45,7 @@ for filename in saved_files:
         st.session_state.uploaded_files[filename] = filepath
         st.session_state.dataframes[filename] = pd.read_csv(filepath)
 
-# Main interface
+# --- Main Interface ---
 if st.session_state.uploaded_files:
     selected_filename = st.selectbox("Select a file to work with", list(st.session_state.uploaded_files.keys()))
     df = st.session_state.dataframes[selected_filename]
@@ -54,7 +54,7 @@ if st.session_state.uploaded_files:
     edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="data_editor")
     st.session_state.dataframes[selected_filename] = edited_df
 
-    # Save edits to disk
+    # Save to disk
     save_path = os.path.join(SAVE_DIR, selected_filename.replace(".xlsx", ".csv"))
     edited_df.to_csv(save_path, index=False)
 
@@ -66,6 +66,7 @@ if st.session_state.uploaded_files:
         st.rerun()
 
     # --- Debt Calculation ---
+    edited_df.columns = [col.strip() for col in edited_df.columns]  # Normalize
     required_cols = ['Restaurant', 'Total']
     if not all(col in edited_df.columns for col in required_cols):
         st.warning("Missing required columns like 'Restaurant' and 'Total'.")
@@ -80,7 +81,7 @@ if st.session_state.uploaded_files:
     def identify_payer(row):
         for couple in selected_couples:
             try:
-                if couple in row and float(row[couple]) < 0:
+                if pd.notnull(row[couple]) and float(row[couple]) < 0:
                     return couple
             except:
                 continue
@@ -88,23 +89,18 @@ if st.session_state.uploaded_files:
 
     edited_df['Payer'] = edited_df.apply(identify_payer, axis=1)
 
-    # Use pre-calculated 'Share Per Couple' from uploaded data
-    if 'Share Per Couple' not in edited_df.columns:
-        st.error("Uploaded file must include a 'Share Per Couple' column.")
-        st.stop()
-
     filtered_df = edited_df[edited_df['Payer'].isin(selected_couples)].copy()
 
     # --- Raw Debt Matrix ---
     debt_matrix = pd.DataFrame(0.0, index=selected_couples, columns=selected_couples)
     for _, row in filtered_df.iterrows():
         payer = row['Payer']
-        share = row['Share Per Couple']
         if payer:
             for couple in selected_couples:
                 try:
-                    if pd.notnull(row[couple]) and float(row[couple]) > 0:
-                        debt_matrix.loc[couple, payer] += float(share)
+                    value = float(row[couple])
+                    if pd.notnull(value) and value > 0:
+                        debt_matrix.loc[couple, payer] += value
                 except:
                     continue
 
