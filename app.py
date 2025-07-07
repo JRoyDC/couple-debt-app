@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import os
 
 # --- Setup ---
@@ -129,7 +130,7 @@ if st.session_state.uploaded_files:
 
     if selected_view:
         filtered_row = net_debt.loc[[selected_view]].copy()
-        filtered_row = filtered_row.applymap(lambda v: v if v > 0 else "")
+        filtered_row = filtered_row.applymap(lambda v: v if v > 0 else np.nan)
 
         st.subheader(f"💳 What {selected_view} Owes Others")
         st.dataframe(
