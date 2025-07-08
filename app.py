@@ -8,31 +8,23 @@ st.set_page_config(page_title="Couple Debt Splitter", layout="wide")
 st.title("🍽️ Couple Debt Splitter")
 
 SAVE_DIR = "saved_data"
+SAVE_FILE = os.path.join(SAVE_DIR, "latest.csv")
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# --- Initialize session state ---
-if "uploaded_files" not in st.session_state:
-    st.session_state.uploaded_files = {}
-if "dataframes" not in st.session_state:
-    st.session_state.dataframes = {}
-if "selected_filename" not in st.session_state:
-    st.session_state.selected_filename = None
+# --- File Upload ---
+st.markdown("### 📤 Upload Excel File")
 
-# --- Load saved CSV files (if any) ---
-saved_files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".csv")]
-for filename in saved_files:
-    if filename not in st.session_state.uploaded_files:
-        filepath = os.path.join(SAVE_DIR, filename)
-        st.session_state.uploaded_files[filename] = filepath
-        st.session_state.dataframes[filename] = pd.read_csv(filepath)
+uploaded_file = st.file_uploader("Upload a single Excel file", type=["xlsx"])
 
-# --- Show message if no file selected ---
-if not st.session_state.selected_filename:
-    st.info("📂 Please upload a file and select it below to begin.")
+if uploaded_file:
+    df = pd.read_excel(uploaded_file, sheet_name=0)
+    df.to_csv(SAVE_FILE, index=False)
+    st.success("✅ File uploaded and saved. The app will now use this file.")
+    st.rerun()
 
-# --- Main Analysis Logic ---
-if st.session_state.selected_filename:
-    df = st.session_state.dataframes[st.session_state.selected_filename]
+# --- Load saved data if available ---
+if os.path.exists(SAVE_FILE):
+    df = pd.read_csv(SAVE_FILE)
 
     df.columns = [col.strip() for col in df.columns]
     required_cols = ['Restaurant', 'Total']
@@ -110,40 +102,5 @@ if st.session_state.selected_filename:
     ✅ **Positive values** = row couple owes column couple  
     ✅ **Negative values** = row couple is owed by column couple
     """)
-
-# --- Bottom: Upload + File Selector ---
-st.markdown("---")
-st.markdown("### 📤 Upload New Excel Files")
-
-uploaded_files = st.file_uploader("Upload Excel files", type=["xlsx"], accept_multiple_files=True)
-
-if uploaded_files:
-    st.session_state.uploaded_files = {}
-    st.session_state.dataframes = {}
-
-    # Clear saved CSVs
-    for f in os.listdir(SAVE_DIR):
-        if f.endswith(".csv"):
-            os.remove(os.path.join(SAVE_DIR, f))
-
-    for file in uploaded_files:
-        df = pd.read_excel(file, sheet_name=0)
-        st.session_state.uploaded_files[file.name] = file
-        st.session_state.dataframes[file.name] = df
-
-        # Save CSV version
-        csv_path = os.path.join(SAVE_DIR, file.name.replace(".xlsx", ".csv"))
-        df.to_csv(csv_path, index=False)
-
-    st.success("✅ Upload complete. Please select a file below.")
-    st.rerun()
-
-# --- File Selector (always shown if files exist) ---
-all_files = list(st.session_state.uploaded_files.keys())
-if all_files:
-    default_index = 0
-    if st.session_state.get("selected_filename") in all_files:
-        default_index = all_files.index(st.session_state["selected_filename"])
-
-    selected_filename = st.selectbox("📂 Select a file to work with", all_files, index=default_index)
-    st.session_state.selected_filename = selected_filename
+else:
+    st.info("📂 Please upload a file to begin.")
