@@ -5,14 +5,14 @@ import os
 
 # --- Setup ---
 st.set_page_config(page_title="Couple Debt Splitter", layout="wide")
-st.title("🍽️ Couple Debt Splitter")
+st.title("🍽️ Couples Debt Splitter")
 
 SAVE_DIR = "saved_data"
 SAVE_FILE = os.path.join(SAVE_DIR, "latest.csv")
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # --- File Upload ---
-st.markdown("### 📤 Upload Excel File")
+st.markdown("### 📤 Upload Excel File (Do not Touch please)")
 
 uploaded_file = st.file_uploader("Upload a single Excel file", type=["xlsx"])
 
