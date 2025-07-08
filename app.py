@@ -15,8 +15,10 @@ if "uploaded_files" not in st.session_state:
     st.session_state.uploaded_files = {}
 if "dataframes" not in st.session_state:
     st.session_state.dataframes = {}
+if "selected_filename" not in st.session_state:
+    st.session_state.selected_filename = None
 
-# --- Load saved CSV files ---
+# --- Load saved CSV files (if any) ---
 saved_files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".csv")]
 for filename in saved_files:
     if filename not in st.session_state.uploaded_files:
@@ -24,10 +26,9 @@ for filename in saved_files:
         st.session_state.uploaded_files[filename] = filepath
         st.session_state.dataframes[filename] = pd.read_csv(filepath)
 
-# --- Main Display Logic ---
-if st.session_state.uploaded_files:
-    selected_filename = st.selectbox("📂 Select a file to work with", list(st.session_state.uploaded_files.keys()), index=0)
-    df = st.session_state.dataframes[selected_filename]
+# --- Main Analysis Logic ---
+if st.session_state.selected_filename:
+    df = st.session_state.dataframes[st.session_state.selected_filename]
 
     df.columns = [col.strip() for col in df.columns]
     required_cols = ['Restaurant', 'Total']
@@ -41,11 +42,11 @@ if st.session_state.uploaded_files:
         st.warning("No couple columns found (expected columns after the third one).")
         st.stop()
 
-    # --- Filter UI (TOP) ---
+    # --- Filter UI ---
     st.markdown("### 🔍 Filter: See Who a Couple Owes")
     selected_view = st.selectbox("Choose a couple", selected_couples)
 
-    # --- Build Debt Matrices ---
+    # --- Build Debt Matrix ---
     debt_matrix = pd.DataFrame(0.0, index=selected_couples, columns=selected_couples)
 
     for _, row in df.iterrows():
@@ -70,7 +71,7 @@ if st.session_state.uploaded_files:
 
     net_debt = debt_matrix.subtract(debt_matrix.T)
 
-    # --- Filtered View ---
+    # --- Filtered Result ---
     if selected_view:
         filtered_row = net_debt.loc[[selected_view]].copy()
         filtered_row = filtered_row.applymap(lambda v: v if v > 0 else np.nan)
@@ -83,7 +84,7 @@ if st.session_state.uploaded_files:
             .set_caption(f"{selected_view} — Owes These Couples")
         )
 
-    # --- Read-Only Table ---
+    # --- Full Table ---
     st.subheader("📄 Transaction Table")
     st.dataframe(df, use_container_width=True)
 
@@ -106,7 +107,7 @@ if st.session_state.uploaded_files:
     ✅ **Negative values** = row couple is owed by column couple
     """)
 
-# --- Upload Section at Bottom (Always Visible) ---
+# --- Bottom: Upload + File Selector ---
 st.markdown("---")
 st.markdown("### 📤 Upload New Excel Files")
 
@@ -130,5 +131,13 @@ if uploaded_files:
         csv_path = os.path.join(SAVE_DIR, file.name.replace(".xlsx", ".csv"))
         df.to_csv(csv_path, index=False)
 
-    st.success("✅ Upload complete. App will refresh with new data.")
+    st.success("✅ Upload complete. Please select a file below.")
     st.rerun()
+
+if st.session_state.uploaded_files:
+    selected_filename = st.selectbox(
+        "📂 Select a file to work with",
+        list(st.session_state.uploaded_files.keys()),
+        index=0
+    )
+    st.session_state.selected_filename = selected_filename
