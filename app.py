@@ -63,7 +63,7 @@ if st.session_state.uploaded_files:
         st.stop()
 
     # --- Filter UI Above All ---
-    st.markdown("### 🔍 Filter: See Who a Couple Owes")
+    st.markdown("### 🔍 Filter: See Which Couple owes Which Couple")
     selected_view = st.selectbox("Choose a couple to view only their debts", selected_couples)
 
     # --- Build Debt Matrix ---
