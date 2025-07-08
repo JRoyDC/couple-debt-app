@@ -107,37 +107,41 @@ if st.session_state.selected_filename:
     ✅ **Negative values** = row couple is owed by column couple
     """)
 
-# --- Bottom: Upload + File Selector ---
-st.markdown("---")
-st.markdown("### 📤 Upload New Excel Files")
+    # --- Bottom: Upload + File Selector ---
+    st.markdown("---")
+    st.markdown("### 📤 Upload New Excel Files")
+    
+    uploaded_files = st.file_uploader("Upload Excel files", type=["xlsx"], accept_multiple_files=True)
+    
+    if uploaded_files:
+        st.session_state.uploaded_files = {}
+        st.session_state.dataframes = {}
+    
+        # Clear saved CSVs
+        for f in os.listdir(SAVE_DIR):
+            if f.endswith(".csv"):
+                os.remove(os.path.join(SAVE_DIR, f))
+    
+        for file in uploaded_files:
+            df = pd.read_excel(file, sheet_name=0)
+            st.session_state.uploaded_files[file.name] = file
+            st.session_state.dataframes[file.name] = df
+    
+            # Save CSV version
+            csv_path = os.path.join(SAVE_DIR, file.name.replace(".xlsx", ".csv"))
+            df.to_csv(csv_path, index=False)
+    
+        st.success("✅ Upload complete. Please select a file below.")
+        st.rerun()
+    
+    # Show file selector if there are any uploaded or saved files
+    all_files = list(st.session_state.uploaded_files.keys())
+    if all_files:
+        # If previously selected file still exists, use it; otherwise default to first
+        default_index = 0
+        if st.session_state.get("selected_filename") in all_files:
+            default_index = all_files.index(st.session_state["selected_filename"])
+    
+        selected_filename = st.selectbox("📂 Select a file to work with", all_files, index=default_index)
+        st.session_state.selected_filename = selected_filename
 
-uploaded_files = st.file_uploader("Upload Excel files", type=["xlsx"], accept_multiple_files=True)
-
-if uploaded_files:
-    st.session_state.uploaded_files = {}
-    st.session_state.dataframes = {}
-
-    # Clear saved CSVs
-    for f in os.listdir(SAVE_DIR):
-        if f.endswith(".csv"):
-            os.remove(os.path.join(SAVE_DIR, f))
-
-    for file in uploaded_files:
-        df = pd.read_excel(file, sheet_name=0)
-        st.session_state.uploaded_files[file.name] = file
-        st.session_state.dataframes[file.name] = df
-
-        # Save CSV version
-        csv_path = os.path.join(SAVE_DIR, file.name.replace(".xlsx", ".csv"))
-        df.to_csv(csv_path, index=False)
-
-    st.success("✅ Upload complete. Please select a file below.")
-    st.rerun()
-
-if st.session_state.uploaded_files:
-    selected_filename = st.selectbox(
-        "📂 Select a file to work with",
-        list(st.session_state.uploaded_files.keys()),
-        index=0
-    )
-    st.session_state.selected_filename = selected_filename
